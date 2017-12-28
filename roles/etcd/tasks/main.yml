@@ -1,0 +1,10 @@
+---
+# tasks file for etcd
+- import_tasks: certs.yml
+- import_tasks: configure.yml
+
+- name: start & enable etcd
+  systemd:
+    name: etcd
+    state: started
+    enabled: true

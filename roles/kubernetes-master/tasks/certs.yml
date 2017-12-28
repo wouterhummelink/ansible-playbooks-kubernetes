@@ -1,0 +1,108 @@
+---
+# tasks file for kubernetes-master
+# yamllint disable rule:line-length
+- name: slurp apiserver server cert
+  slurp:
+    src: /etc/pki/kubernetes/server/{{ ansible_fqdn }}-apiserver/{{ansible_fqdn}}-apiserver.cert.pem.pub
+  delegate_to: "{{ groups.masters[0] }}"
+  register: apiserver_cert
+
+- name: slurp apiserver server key
+  slurp:
+    src: /etc/pki/kubernetes/server/{{ ansible_fqdn }}-apiserver/{{ansible_fqdn}}-apiserver.key.pem
+  delegate_to: "{{ groups.masters[0] }}"
+  register: apiserver_key
+
+- name: write apiserver key
+  copy:
+    content: "{{ apiserver_key.content | b64decode}}"
+    dest: /etc/kubernetes/ssl/apiserver.key
+    owner: root
+    group: root
+    mode: 0700
+
+- name: write apiserver cert
+  copy:
+    content: "{{ apiserver_cert.content | b64decode}}"
+    dest: /etc/kubernetes/ssl/apiserver.crt
+    owner: root
+    group: root
+    mode: 0700
+
+- name: slurp controller-manager client cert
+  slurp:
+    src: /etc/pki/kubernetes/client/kube-controller-manager.cert.pem.pub
+  delegate_to: "{{ groups.masters[0] }}"
+  register: controller_manager_cert
+
+- name: slurp controller-manager client key
+  slurp:
+    src: /etc/pki/kubernetes/client/kube-controller-manager.key.pem
+  delegate_to: "{{ groups.masters[0] }}"
+  register: controller_manager_key
+
+- name: write controller-manager cert
+  copy:
+    content: "{{ controller_manager_cert.content | b64decode}}"
+    dest: /etc/kubernetes/ssl/controller-manager.crt
+    owner: root
+    group: root
+    mode: 0700
+
+- name: write controller-manager key
+  copy:
+    content: "{{ controller_manager_key.content | b64decode}}"
+    dest: /etc/kubernetes/ssl/controller-manager.key
+    owner: root
+    group: root
+    mode: 0700
+
+- name: slurp scheduler client cert
+  slurp:
+    src: /etc/pki/kubernetes/client/kube-scheduler.cert.pem.pub
+  delegate_to: "{{ groups.masters[0] }}"
+  register: scheduler_cert
+- name: slurp scheduler client key
+  slurp:
+    src: /etc/pki/kubernetes/client/kube-scheduler.key.pem
+  delegate_to: "{{ groups.masters[0] }}"
+  register: scheduler_key
+
+- name: write scheduler cert
+  copy:
+    content: "{{ scheduler_cert.content | b64decode}}"
+    dest: /etc/kubernetes/ssl/scheduler.crt
+    owner: root
+    group: root
+    mode: 0700
+- name: write scheduler key
+  copy:
+    content: "{{ scheduler_key.content | b64decode}}"
+    dest: /etc/kubernetes/ssl/scheduler.key
+    owner: root
+    group: root
+    mode: 0700
+
+- name: create etcd cert dir
+  file:
+    path: "{{ kube_etcd_certs_dir }}"
+    state: directory
+
+- name: get client certs from ca master
+  delegate_to: "{{ groups.masters[0] }}"
+  register: etcd_certs
+  slurp:
+    src: "{{ item }}"
+  with_items:
+    - "{{ etcd_ca_dir }}/client/{{ inventory_hostname }}.cert.pem.pub"
+    - "{{ etcd_ca_dir }}/client/{{ inventory_hostname }}.key.pem"
+    - "{{ etcd_ca_dir }}/cacert.pem"
+
+- name: write out certs
+  copy:
+    content: "{{ item.content }}"
+    dest: "{{ item.dest }}"
+  with_items:
+    - {dest: "{{ apiserver_etcd_cert_file }}", content: "{{etcd_certs.results[0].content|b64decode}}"}
+    - {dest: "{{ apiserver_etcd_key_file }}", content: "{{etcd_certs.results[1].content|b64decode}}"}
+    - {dest: "{{ apiserver_etcd_ca_file }}", content: "{{etcd_certs.results[2].content|b64decode}}"}

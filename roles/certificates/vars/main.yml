@@ -1,0 +1,6 @@
+---
+# vars file for certificates
+ansible_ca_dir: /etc/pki/ansible
+k8s_ca_dir: /etc/pki/kubernetes
+etcd_ca_dir: /etc/pki/etcd
+

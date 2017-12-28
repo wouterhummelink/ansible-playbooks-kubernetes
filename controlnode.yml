@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:truthy rule:line-length
 - name: setup control node
   hosts: localhost
   become: yes
@@ -12,14 +13,59 @@
           - tree
           - libselinux-python
           - unbound
+          - bind-utils
+          - tcpdump
+
         state: latest
     - name: install powerline
       become: no
       pip:
-        name: powerline-status
+        name: "{{ item }}"
         executable: pip2
         state: present
         extra_args: "--user"
+      with_items:
+        - powerline-status
+        - ansible-lint
+        - yamllint
+
+    - name: vim plugins and powerline config
+      become: no
+      file:
+        path: "{{ item }}"
+        state: directory
+        recurse: yes
+      with_items:
+        - /home/{{ ansible_user }}/.vim/autoload
+        - /home/{{ ansible_user }}/.vim/bundle
+        - /home/{{ ansible_user }}/.config/powerline
+
+    - name: vim plugins
+      git:
+        clone: yes
+        dest: "/home/{{ansible_user}}/.vim/bundle/{{ item.name }}"
+        repo: https://github.com/vim-syntastic/syntastic.git
+        depth: 1
+      with_items:
+        - {name: syntastic, repo: "https://github.com/vim-syntastic/syntastic.git"}
+
+
+    - name: install pathogen
+      get_url:
+        url: https://tpo.pe/pathogen.vim
+        dest: /home/{{ ansible_user }}/.vim/autoload/pathogen.vim
+
+    - name: configure powerline
+      copy:
+        content: |
+          {
+            "ext": {
+              "shell": {
+                "theme": "default_leftonly"
+              }
+            }
+          }
+        dest: /home/{{ ansible_user }}/.config/powerline/config.json
 
     - name: add powerline to environment
       lineinfile:
@@ -29,19 +75,66 @@
         - export PATH=$PATH:~/.local/bin
         - powerline-daemon -q
         - ". ~/.local/lib/python2.7/site-packages/powerline/bindings/bash/powerline.sh"
-        
+
     - name: deploy vimrc
       copy:
         content: |
+          set t_Co=256
           set sw=2
+          set ai
           set expandtab
           set tabstop=2
           set softtabstop=2
           set laststatus=2 " Always display the statusline in all windows "
           set showtabline=2 " Always display the tabline, even if there is only one tab "
           set noshowmode " Hide the default mode text (e.g. -- INSERT -- below the statusline) "
+          execute pathogen#infect()
           python from powerline.vim import setup as powerline_setup
           python powerline_setup()
           python del powerline_setup
-          
+          let g:syntastic_yaml_checkers = ['yamllint']
+          let g:syntastic_always_populate_loc_list = 1
+          let g:syntastic_auto_loc_list = 1
+          let g:syntastic_check_on_open = 1
+          let g:syntastic_check_on_wq = 0
+
         dest: "/home/{{ ansible_user }}/.vimrc"
+
+- name: populate hosts file
+  hosts: all
+  become: yes
+  tasks:
+    - name: generate hosts entries for nodes
+      lineinfile:
+        dest: /etc/hosts
+        line: "{{ ansible_default_ipv4.address }} {{ ansible_fqdn }} {{ ansible_hostname }}"
+      delegate_to: localhost
+
+- name: populate local dns zone
+  hosts: localhost
+  tasks:
+    - name: template out unbound.conf
+      template:
+        src: templates/unbound.conf.j2
+        dest: /etc/unbound/unbound.conf
+      notify: restart unbound
+    - name: debug
+      debug:
+        var: hostvars['node1.lab.example.com']['ansible_eth1']
+    - name: local dns
+      template:
+        src: templates/unbound-zone.conf.j2
+        dest: /etc/unbound/conf.d/{{ ansible_domain }}.conf
+      notify: restart unbound
+
+    - name: start and enable unbound
+      systemd:
+        name: unbound
+        state: started
+        enabled: yes
+      ignore_errors: yes
+  handlers:
+    - name: restart unbound
+      systemd:
+        state: restarted
+        name: unbound

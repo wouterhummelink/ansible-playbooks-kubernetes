@@ -1,0 +1,75 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  containers:
+  - name: kube-apiserver
+    image: gcr.io/google_containers/hyperkube-amd64:{{ k8sVersion }}
+    command:
+    - /hyperkube
+    - apiserver
+    - --bind-address={{ kube_apiserver_bind_address }}
+    - --etcd-servers={% for node in groups['etcd'] %}https://{{hostvars[node]['ansible_'+etcd_interface]['ipv4']['address']}}:2379{% if not loop.last %},{% endif %}{% endfor %}
+
+    - --etcd-cafile={{ apiserver_etcd_ca_file }}
+    - --etcd-certfile={{ apiserver_etcd_cert_file }}
+    - --etcd-keyfile={{ apiserver_etcd_key_file }}
+    - --storage-backend=etcd3
+    - --allow-privileged=true
+    - --insecure-bind-address=127.0.0.1
+    - --service-cluster-ip-range={{ kube_service_addresses }}
+    - --secure-port={{ master_cluster_port }}
+    - --advertise-address={{ ansible_eth1.ipv4.address }}
+    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PodSecurityPolicy,DefaultStorageClass,ResourceQuota,NodeRestriction
+    - --tls-cert-file={{ kube_cert_dir }}/apiserver.crt
+    - --tls-private-key-file={{ kube_cert_dir }}/apiserver.key
+    - --client-ca-file={{ kube_cert_dir }}/ca.crt
+    - --service-account-key-file={{ kube_cert_dir }}/apiserver.crt
+    - --apiserver-count={{ groups['masters']|length}}
+    - --token-auth-file={{ kube_token_dir }}/known_tokens.csv
+#    - --authentication-token-webhook-config-file=/etc/kubernetes/webhook/webhook.yml
+#    - --authentication-token-webhook-cache-ttl=2m
+    - --runtime-config=authentication.k8s.io/v1,batch/v2alpha1,extensions/v1beta1/podsecuritypolicy,extensions/v1beta1/networkpolicies
+    - --authorization-mode=Node,RBAC
+    - --authorization-rbac-super-user=kube-apiserver
+    - --v=2
+    ports:
+    - containerPort: {{ master_cluster_port }}
+      hostPort: {{ master_cluster_port }}
+      name: https
+    - containerPort: 8080
+      hostPort: 8080
+      name: local
+    volumeMounts:
+    - mountPath: /etc/pki/tls/certs
+      name: ssl-certs-host
+      readOnly: true
+    - mountPath: {{ kube_token_dir }}
+      name: kube-token-dir
+      readOnly: false
+    - mountPath: {{ kube_cert_dir }}
+      name: ssl-certs-kubernetes
+      readOnly: true
+#    - mountPath: /etc/resolv.conf
+#      name: etc-resolv
+#      readOnly: true
+#    - mountPath: /etc/kubernetes/webhook
+#      name: etc-kubernetes-webhook
+#      readOnly: true
+  volumes:
+  - name: ssl-certs-kubernetes
+    hostPath:
+      path: {{ kube_cert_dir }}
+  - name: ssl-certs-host
+    hostPath:
+      path: /etc/pki/tls/certs
+  - name: kube-token-dir
+    hostPath:
+      path: {{ kube_token_dir }}
+#  - name: etc-kubernetes-webhook
+#    hostPath:
+#      path: /etc/kubernetes/webhook

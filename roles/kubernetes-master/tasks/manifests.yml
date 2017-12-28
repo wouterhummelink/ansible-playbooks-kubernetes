@@ -1,0 +1,22 @@
+---
+- name: add apiserver config
+  template:
+    src: apiserver.j2
+    dest: "{{ kube_config_dir }}/apiserver"
+
+- name: master kubeconfigs
+  template:
+    src: "{{ item }}.kubeconfig.j2"
+    dest: "{{ kube_config_dir }}/{{item}}.kubeconfig"
+  with_items:
+    - scheduler
+    - controller-manager
+
+- name: add master manifests
+  template:
+    src: "kube-{{ item }}.yml.j2"
+    dest: "{{ kube_manifest_dir}}/kube-{{ item }}.yml"
+  with_items:
+    - apiserver
+    - controller-manager
+    - scheduler

@@ -1,0 +1,23 @@
+---
+dns_setup: true
+dns_server: 10.255.0.10
+dns_domain: cluster.local
+
+k8sVersion: v1.8.0
+k8sRbacApiVersion: rbac.authorization.k8s.io/v1
+k8s_cluster_cidr: 10.244.0.0/16
+kube_service_addresses: 10.255.0.0/16
+kube_api_address: 10.255.0.1
+cluster_name: kubernetes
+master_cluster_port: 6443
+# master_cluster_hostname: master-cluster.example.com
+
+kube_config_dir: /etc/kubernetes
+kube_manifest_dir: /etc/kubernetes/manifests
+kube_cert_dir: /etc/kubernetes/ssl
+
+etcd_ca_dir: /etc/pki/etcd
+
+pki_p12password: ljljslkfkjlfjkdlfjflkdjslfj
+
+etcd_interface: eth1

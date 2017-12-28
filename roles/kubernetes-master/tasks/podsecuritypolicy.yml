@@ -1,0 +1,9 @@
+---
+- name: add podsecurity policies on master
+  template:
+    src: podsecuritypolicy.yml.j2
+    dest: /etc/kubernetes/podsecuritypolicy.yml
+  register: psp_template
+- name: load the policy into kubernetes
+  when: psp_template.changed
+  command: kubectl apply -f /etc/kubernetes/podsecuritypolicy.yml

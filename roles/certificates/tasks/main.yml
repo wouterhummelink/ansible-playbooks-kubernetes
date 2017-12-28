@@ -1,0 +1,74 @@
+---
+# yamllint disable rule:line-length
+# tasks file for certificates
+- name: generate etcd ca key
+  ca:
+    certdir: "{{ etcd_ca_dir }}"
+    subj: "/CN=Etcd Certificate Authority"
+
+- name: generate k8s ca key
+  ca:
+    certdir: "{{ k8s_ca_dir}}"
+    subj: "/CN=Kubernetes Certificate Authority"
+
+- name: generate etcd node certs
+  certificate:
+    cadir: "{{ etcd_ca_dir }}"
+    certname: "{{ item }}"
+    subj: "/CN={{ hostvars[item].ansible_fqdn }}"
+    p12password: "{{ pki_p12password }}"
+    subjectAltNames: "DNS:{{ hostvars[item].ansible_fqdn }},DNS:{{ hostvars[item].ansible_hostname }},IP:{{ hostvars[item].ansible_eth0.ipv4.address }},IP:{{ hostvars[item].ansible_eth1.ipv4.address }}"
+  with_items: "{{ groups['etcd'] }}"
+
+- name: generate master client cert for etcd
+  certificate:
+    cadir: "{{ etcd_ca_dir }}"
+    certname: "{{ item }}"
+    subj: "/CN={{ hostvars[item].ansible_fqdn }}"
+    p12password: "{{ pki_p12password }}"
+    certtype: client
+  with_items: "{{ groups['masters'] }}"
+
+- name: generate k8s master kubelet certs
+  certificate:
+    cadir: "{{ k8s_ca_dir }}"
+    certname: "system:node:{{ item }}"
+    subj: "/CN=system:node:{{ hostvars[item].ansible_fqdn }}/O=system:masters"
+    p12password: "{{ pki_p12password }}"
+    certtype: client
+  with_items: "{{ groups['masters'] }}"
+
+- name: generate k8s apiserver certs
+  certificate:
+    cadir: "{{ k8s_ca_dir }}"
+    certname: "{{ item }}-apiserver"
+    subj: "/CN={{ hostvars[item].ansible_fqdn }}"
+    p12password: "{{ pki_p12password }}"
+    certtype: server
+    subjectAltNames: "DNS:{{ hostvars[item].ansible_fqdn }},DNS:{{ hostvars[item].ansible_hostname}},DNS:kubernetes,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.{{k8s_dns_domain}},IP:{{ kube_api_address }},IP:{{ hostvars[item].ansible_eth1.ipv4.address }}"
+  with_items: "{{ groups['masters'] }}"
+
+- name: generate k8s node certs
+  certificate:
+    cadir: "{{ k8s_ca_dir }}"
+    certname: "system:node:{{ item }}"
+    subj: "/CN=system:node:{{ hostvars[item].ansible_fqdn }}/O=system:masters"
+    p12password: "{{ pki_p12password }}"
+    certtype: client
+  with_items: "{{ groups['nodes'] }}"
+
+- name: generate k8s controller manager cert
+  certificate:
+    cadir: "{{ k8s_ca_dir }}"
+    certname: "kube-controller-manager"
+    subj: "/CN=system:kube-controller-manager"
+    p12password: "{{ pki_p12password }}"
+    certtype: client
+
+- name: generate k8s scheduler cert
+  certificate:
+    cadir: "{{ k8s_ca_dir }}"
+    certname: "kube-scheduler"
+    subj: "/CN=system:kube-scheduler"
+    p12password: "{{ pki_p12password }}"
+    certtype: client

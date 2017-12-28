@@ -1,0 +1,16 @@
+---
+- name: create addon dir
+  file:
+    state: directory
+    path: "{{ kube_config_dir }}/addons/dns"
+- name: template out kube-dns deployment
+  template:
+    src: kube-dns.yml.j2
+    dest: "{{ kube_config_dir }}/addons/dns/kube-dns.yaml"
+- name: template out kube-dns psp
+  template:
+    src: sa-psp-binding.yml.j2
+    dest: "{{ kube_config_dir }}/addons/dns/kube-dns-cr.yaml"
+  vars:
+    service_account_name: kube-dns
+    service_account_namespace: kube-system

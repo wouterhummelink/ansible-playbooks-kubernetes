@@ -1,0 +1,14 @@
+---
+apiVersion: {{ k8sRbacApiVersion }}
+kind: RoleBinding
+metadata:
+  name: {{ service_account_name }}-psp
+  namespace: {{ service_account_namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ service_account_name }}
+    namespace: {{ service_account_namespace }}
+roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
+   name: privileged-psp-user

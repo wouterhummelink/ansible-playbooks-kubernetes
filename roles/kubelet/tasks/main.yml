@@ -1,0 +1,127 @@
+---
+# yamllint disable rule:truthy rule:line-length
+# tasks file for kubelet
+#
+# - name: atomic image
+#  atomic_image:
+#    name: whummelink/kubernetes-kubelet:1.8.0
+#    state: latest
+#    backend: ostree
+
+# This doesn't work yet
+# - name: atomic system container
+#  atomic_container:
+#    image: whummelink/kubernetes-kubelet:1.8.0
+#    state: latest
+#    name: kubelet
+#    mode: system
+#    backend: ostree
+
+- name: install kubelet system container
+  command: atomic install --name kubelet --system --storage ostree --system-package no whummelink/kubernetes-kubelet:1.8.0
+  args:
+    creates: /var/lib/containers/atomic/kubelet
+
+- name: enable & start kubelet
+  service:
+    name: kubelet
+    state: started
+    enabled: yes
+
+- name: create cni dirs
+  file:
+    path: "{{ item }}"
+    recurse: yes
+    state: directory
+  with_items:
+    - /opt/cni/bin
+    - /etc/cni/net.d
+
+- name: download cni plugins
+  unarchive:
+    src: https://github.com/containernetworking/plugins/releases/download/{{ cni_version }}/cni-plugins-amd64-{{ cni_version }}.tgz
+    remote_src: yes
+    dest: /opt/cni/bin
+    creates: /opt/cni/bin/flannel
+
+- name: kubelet sysconfig
+  template:
+    src: kubelet.sysconfig.j2
+    dest: /etc/kubernetes/kubelet
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart kubelet
+
+- name: kubernetes config
+  template:
+    src: config.j2
+    dest: /etc/kubernetes/config
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart kubelet
+
+- name: kubernetes ssl & manifest dir
+  file:
+    state: directory
+    owner: root
+    group: root
+    mode: 0700
+    path: "{{ item }}"
+  with_items:
+    - /etc/kubernetes/ssl
+    - "{{ kube_manifest_dir }}"
+
+- name: slurp node cert
+  slurp:
+    src: /etc/pki/kubernetes/client/system:node:{{ ansible_fqdn }}.cert.pem.pub
+  delegate_to: "{{ groups['masters'][0] }}"
+  register: kubelet_cert
+
+- name: write kubelet client cert
+  copy:
+    content: "{{ kubelet_cert.content | b64decode }}"
+    dest: /etc/kubernetes/ssl/kubelet.client.crt
+  notify: restart kubelet
+
+- name: slurp node cert
+  slurp:
+    src: /etc/pki/kubernetes/client/system:node:{{ ansible_fqdn }}.key.pem
+  delegate_to: "{{ groups['masters'][0] }}"
+  register: kubelet_key
+
+- name: write kubelet client key
+  copy:
+    content: "{{ kubelet_key.content | b64decode }}"
+    dest: /etc/kubernetes/ssl/kubelet.client.key
+  notify: restart kubelet
+
+- name: slurp ca cert
+  slurp:
+    src: /etc/pki/kubernetes/cacert.pem
+  delegate_to: "{{ groups['masters'][0] }}"
+  register: kubernetes_ca_cert
+
+- name: write kubernetes ca cert
+  copy:
+    content: "{{ kubernetes_ca_cert.content | b64decode }}"
+    dest: /etc/kubernetes/ssl/ca.crt
+  notify: restart kubelet
+
+- name: kubelet kubeconfig
+  template:
+    src: kubelet.kubeconfig.j2
+    dest: /etc/kubernetes/kubelet.kubeconfig
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart kubelet
+
+- name:
+  template:
+    src: kube-proxy.kubeconfig.j2
+    dest: /etc/kubernetes/kube-proxy.kubeconfig
+
+- name: restart kubelet if changed
+  meta: flush_handlers

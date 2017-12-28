@@ -1,0 +1,5 @@
+---
+- name: write etcd config
+  template:
+    src: etcd.conf.j2
+    dest: /etc/etcd/etcd.conf

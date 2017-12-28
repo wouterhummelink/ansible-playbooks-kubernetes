@@ -1,0 +1,4 @@
+---
+- import_tasks: weave.yml
+- import_tasks: kube-proxy.yml
+- import_tasks: kube-dns.yml

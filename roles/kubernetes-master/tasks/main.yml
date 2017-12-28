@@ -1,0 +1,13 @@
+---
+- include_tasks: certs.yml
+
+- include_tasks: manifests.yml
+
+- name: wait for apiserver to become ready
+  wait_for:
+    port: 6443
+    state: started
+    delay: 20
+    timeout: 300
+
+- include_tasks: podsecuritypolicy.yml

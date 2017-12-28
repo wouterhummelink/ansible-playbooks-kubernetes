@@ -1,0 +1,30 @@
+---
+- name: setup
+  hosts: all
+  roles:
+    - setup
+
+- name: kubernetes certificates
+  hosts: "{{ groups.masters[0] }}"
+  roles:
+    - certificates
+
+- name: etcd
+  hosts: etcd
+  roles:
+    - etcd
+
+- name: kubelet installation
+  hosts: all
+  roles:
+    - kubelet
+
+- name: kubernetes master components
+  hosts: masters
+  roles:
+    - kubernetes-master
+
+- name: kubernetes addon components
+  hosts: "{{ groups.masters[0] }}"
+  roles:
+    - kubernetes-addons

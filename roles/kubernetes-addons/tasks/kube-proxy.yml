@@ -1,0 +1,64 @@
+---
+# tasks file for kubernetes-addons
+# yamllint disable rule:line-length
+- name: create addons dir
+  file:
+    state: directory
+    path: "{{ item }}"
+  with_items:
+    - "{{ kube_config_dir }}/kube-proxy"
+
+- name: add serviceaccount for kube-proxy
+  template:
+    src: serviceaccount.yml.j2
+    dest: /etc/kubernetes/kube-proxy/kube-proxy-sa.yml
+  register: proxy_sa
+  vars:
+    service_account_name: kube-proxy
+    service_account_namespace: kube-system
+
+- name: apply serviceaccount
+  command: kubectl apply -f /etc/kubernetes/kube-proxy/kube-proxy-sa.yml
+  when: proxy_sa.changed
+
+- name: add clusterrolebinding for kube-proxy to system:node-proxier
+  template:
+    src: kube-proxy-crb.yml.j2
+    dest: /etc/kubernetes/kube-proxy/kube-proxy-crb.yml
+  register: kube_proxy_crb
+  vars:
+    service_account_name: kube-proxy
+    service_account_namespace: kube-system
+
+- name: apply clusterrolebinding
+  command: kubectl apply -f /etc/kubernetes/kube-proxy/kube-proxy-crb.yml
+  when: kube_proxy_crb.changed
+
+- name: create kube-proxy kubeconfig
+  template:
+    src: kube-proxy.kubeconfig.j2
+    dest: /etc/kubernetes/kube-proxy.kubeconfig
+
+- name: create kube-proxy daemonset
+  template:
+    src: kube-proxy.yml.j2
+    dest: "{{ kube_config_dir }}/kube-proxy/kube-proxy.yml"
+  register: proxy_ds
+
+- name: apply daemonset
+  command: kubectl apply -f  "{{ kube_config_dir }}/kube-proxy/kube-proxy.yml"
+  when: proxy_ds.changed
+
+- name: add crb for privileged psp
+  template:
+    src: sa-psp-binding.yml.j2
+    dest: "{{ kube_config_dir }}/kube-proxy/sa-psp-binding.yml"
+  vars:
+    service_account_name: kube-proxy
+    service_account_namespace: kube-system
+  register: proxy_psp
+
+
+- name: apply psp
+  command: "kubectl apply -f {{ kube_config_dir }}/kube-proxy/sa-psp-binding.yml"
+  when: proxy_psp.changed

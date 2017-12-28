@@ -1,0 +1,35 @@
+---
+# tasks file for kubernetes-addons
+#
+- name: create addons dir
+  file:
+    state: directory
+    path: "{{ item }}"
+  with_items:
+    - "{{ kube_config_dir }}/addons"
+    - "{{ kube_config_dir }}/weave"
+
+- name: create weave daemonset
+  template:
+    src: weave-net.yml.j2
+    dest: "{{ kube_config_dir }}/weave/weave-net.yml"
+  register: weave_net_ds
+
+- name: apply daemonset
+  command: kubectl apply -f  "{{ kube_config_dir }}/weave/weave-net.yml"
+  when: weave_net_ds.changed
+
+- name: add crb for weave-net
+  template:
+    src: sa-psp-binding.yml.j2
+    dest: "{{ kube_config_dir }}/weave/sa-psp-binding.yml"
+  vars:
+    service_account_name: weave-net
+    service_account_namespace: kube-system
+  register: weave_psp
+
+- name: apply psp
+  command: kubectl apply -f  "{{ kube_config_dir }}/weave/sa-psp-binding.yml"
+  when: weave_psp.changed
+
+

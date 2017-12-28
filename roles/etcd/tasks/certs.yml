@@ -1,0 +1,34 @@
+---
+- name: create cert dir
+  file:
+    state: directory
+    path: /etc/etcd/certs
+
+- name: get etcd node cert & ca cert
+  slurp:
+    src: "{{etcd_ca_dir}}/{{ item }}"
+  with_items:
+    - "cacert.pem"
+    - "server/{{ inventory_hostname }}/{{ inventory_hostname }}.cert.pem.pub"
+    - "server/{{ inventory_hostname }}/{{ inventory_hostname }}.key.pem"
+  delegate_to: "{{ groups['masters'][0] }}"
+  register: etcd_server_certs
+
+- name: register certs
+  set_fact:
+    etcd_ca_cert: "{{ etcd_server_certs.results[0].content | b64decode }}"
+    etcd_server_cert: "{{ etcd_server_certs.results[1].content | b64decode }}"
+    etcd_server_key: "{{ etcd_server_certs.results[2].content | b64decode }}"
+    etcd_peer_cert: "{{ etcd_server_certs.results[1].content | b64decode }}"
+    etcd_peer_key: "{{ etcd_server_certs.results[2].content | b64decode }}"
+
+- name: write certs
+  copy:
+    dest: "{{ item.dest }}"
+    content: "{{ item.content }}"
+  with_items:
+    - {dest: "{{ etcd_ca_file }}", content: "{{ etcd_ca_cert }}"}
+    - {dest: "{{ etcd_cert_file }}", content: "{{ etcd_server_cert }}"}
+    - {dest: "{{ etcd_key_file }}", content: "{{ etcd_server_key }}"}
+    - {dest: "{{ etcd_peer_cert_file}}", content: "{{ etcd_peer_cert }}"}
+    - {dest: "{{ etcd_peer_key_file}}", content: "{{ etcd_peer_key }}"}

@@ -1,0 +1,23 @@
+---
+# defaults file for kubelet
+cni_version: v0.6.0
+cluster_hostname: "{{ master_cluster_hostname | default('') }}"
+
+kubernetes_log_level: 2
+kubelet_image: whummelink/kubernetes-kubelet
+kubelet_image_version: 1.8.0
+
+services_enabled: true
+kubelet_modified: false
+proxy_modified: false
+
+kubelet_options:
+  - "--kubeconfig={{ kube_config_dir }}/kubelet.kubeconfig"
+  - "--pod-manifest-path={{ kube_manifest_dir }}"
+  - "--cgroup-driver=systemd"
+kubelet_additional_options: []
+
+kubelet_working_dir: /var/lib/kubelet
+
+kube_master_api_port: "{{ master_cluster_port }}"
+disable_swap: true
